@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+   <link rel="preconnect" href="https://fonts.googleapis.com">
+  <!-- Favicon -->
+  <link
+    rel="icon"
+    type="image/svg+xml"
+    href="data:image/svg+xml,%3Csvg xmlns='http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230b1020'/%3E%3Cpath d='M20 76L50 18l30 58H66L50 46 34 76z' fill='white'/%3E%3C%2Fsvg%3E"
+  >
+
+  <titl>Attendance</title>
+
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+ 
+</head>
+<body>
+<header>
+  <div>
+    <h1>🏫 Smart School IoT</h1>
+    <p>Attendance • Classroom Environment • Alerts</p>
+  </div>
+  <span id="status" class="badge">Loading...</span>
+</header>
+
+<main>
+  <section class="cards">
+    <div class="card"><h3>🌡️ Temperature</h3><strong id="temp">--</strong><small>°C</small></div>
+    <div class="card"><h3>💧 Humidity</h3><strong id="humidity">--</strong><small>%</small></div>
+    <div class="card"><h3>👨‍🎓 Students</h3><strong id="studentCount">--</strong></div>
+    <div class="card"><h3>🚨 Alerts</h3><strong id="alertCount">--</strong></div>
+  </section>
+
+  <section class="panel">
+    <h2>➕ Register Student RFID</h2>
+    <form id="studentForm">
+      <input id="name" placeholder="Student name" required>
+      <input id="code" placeholder="Student code" required>
+      <input id="uid" placeholder="RFID UID e.g. A1B2C3D4" required>
+      <input id="className" placeholder="Class e.g. L5 IT" required>
+      <button>Add Student</button>
+    </form>
+    <p id="formMsg"></p>
+  </section>
+
+  <section class="grid">
+    <div class="panel">
+      <h2>👨‍🎓 Recent Attendance</h2>
+      <table>
+        <thead><tr><th>Name</th><th>Class</th><th>RFID</th><th>Time</th></tr></thead>
+        <tbody id="attendanceBody"></tbody>
+      </table>
+    </div>
+    <div class="panel">
+      <h2>🚨 Recent Alerts</h2>
+      <table>
+        <thead><tr><th>Type</th><th>Message</th><th>Value</th><th>Time</th></tr></thead>
+        <tbody id="alertsBody"></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+ghf
+<script>
+const fmt = x => x ? new Date(x).toLocaleString() : "--";
+
+async function load() {
+  try {
+    const [students, attendance, sensor, alerts] = await Promise.all([
+      fetch("/api/students").then(r=>r.json()),
+      fetch("/api/attendance").then(r=>r.json()),
+      fetch("/api/sensors/latest").then(r=>r.json()),
+      fetch("/api/alerts").then(r=>r.json())
+    ]);
+
+    document.getElementById("status").textContent = sensor.id ? "🟢 ESP32 data received" : "🟡 Waiting for ESP32";
+    document.getElementById("temp").textContent = sensor.temperature ?? "--";
+    document.getElementById("humidity").textContent = sensor.humidity ?? "--";
+    document.getElementById("studentCount").textContent = students.length;
+    document.getElementById("alertCount").textContent = alerts.length;
+
+    document.getElementById("attendanceBody").innerHTML = attendance.map(a =>
+      `<tr><td>${a.name}</td><td>${a.class_name}</td><td>${a.rfid_uid}</td><td>${fmt(a.scanned_at)}</td></tr>`
+    ).join("");
+
+    document.getElementById("alertsBody").innerHTML = alerts.map(a =>
+      `<tr><td>${a.alert_type}</td><td>${a.message}</td><td>${a.value ?? ""}</td><td>${fmt(a.created_at)}</td></tr>`
+    ).join("");
+  } catch(e) {
+    document.getElementById("status").textContent = "🔴 Server error";
+  }
+}
+
+document.getElementById("studentForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const payload = {
+    name: name.value,
+    student_code: code.value,
+    rfid_uid: uid.value.toUpperCase(),
+    class_name: className.value
+  };
+  const res = await fetch("/api/students", {
+    method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  document.getElementById("formMsg").textContent = data.message || data.error;
+  if(res.ok) e.target.reset();
+  load();
+});
+
+load();
+setInterval(load, 5000);
+</script>
+</body>
+</html>
